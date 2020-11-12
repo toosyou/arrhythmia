@@ -92,7 +92,7 @@ class MITLoader():
 
             # prevent train positions from being too close to valid positions
             for vp in valid_pos:
-                train_pos = train_pos[np.logical_or(train_pos < vp-self.length_segment//2, train_pos > vp + self.length_segment//2 )]
+                train_pos = train_pos[np.logical_or(train_pos < vp-self.length_segment, train_pos > vp + self.length_segment )]
 
             train_poses.append(train_pos)
             valid_poses.append(valid_pos)
@@ -137,6 +137,7 @@ class DataGenerator():
         return self.data_loader.get_batch(self.pos, self.batch_size)
 
 if __name__ == "__main__":
+    # testing
     mit_loader = MITLoader()
 
     train_data_generator = DataGenerator(mit_loader, 'train', 64)
