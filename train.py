@@ -1,6 +1,9 @@
 import numpy as np
+import configparser
+
 import tensorflow as tf
 from tensorflow.keras import backend as K
+from train_utils import gpu_allow_growth; gpu_allow_growth()
 
 import better_exceptions; better_exceptions.hook()
 
@@ -8,8 +11,7 @@ import wandb
 from wandb.keras import WandbCallback
 
 from data_utils import MITLoader, DataGenerator
-from train_utils import peak_f1, gpu_allow_growth; gpu_allow_growth()
-
+from callbacks import PerformanceLoger, LogBest
 from model import unet
 
 def focal_loss(alpha=2, beta=4):
@@ -24,8 +26,8 @@ if __name__ == "__main__":
     config = {
         'batch_size': 64,
         'min_peak_distance': 100,
-        'peak_max_delta': 10,
-        'min_peak_height': 0.5,
+        'peak_max_delta': int(100 / 1000 * 360), # ~100ms
+        'min_peak_height': 0.3,
     }
     wandb.init('arrhythmia', entity='toosyou', 
                 config=config)
@@ -39,16 +41,19 @@ if __name__ == "__main__":
     model = unet(training_set.shape_X[1:], training_set.shape_y[-1])
     model.summary()
 
-    metrics=[peak_f1(wandb.config.min_peak_distance, 
-                        wandb.config.min_peak_height,
-                        wandb.config.peak_max_delta)]
-
-    model.compile(optimizer='adam', loss=focal_loss(),
-                    run_eagerly=True, metrics=metrics)
+    model.compile(optimizer='adam', loss=focal_loss())
 
     model.fit(training_set, validation_data=validation_set, 
                 epochs=500,
                 callbacks=[
+                    PerformanceLoger(training_set, validation_set,
+                                        mit_loader.target_labels,
+                                        wandb.config.min_peak_distance,
+                                        wandb.config.min_peak_height,
+                                        wandb.config.peak_max_delta),
+                    LogBest(records=['val_loss', 'loss',] + 
+                                        ['{}_f1_score'.format(l) for l in mit_loader.target_labels] + 
+                                        ['val_{}_f1_score'.format(l) for l in mit_loader.target_labels] ),
                     WandbCallback(),
                     # tf.keras.callbacks.EarlyStopping(patience=10)
                 ], )

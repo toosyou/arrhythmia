@@ -17,6 +17,7 @@ better-exceptions = "*"
 scipy = "*"
 importlib-metadata = "==1.7.0"
 wandb = "*"
+tqdm = "*"
 
 [requires]
 python_version = "3.6"
