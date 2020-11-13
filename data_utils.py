@@ -82,7 +82,7 @@ class MITLoader():
         pos = pos[pos < self.X.shape[1] - self.length_segment//2]
         return pos
 
-    def get_split(self, valid_ratio=0.1, random_state=42):
+    def get_split(self, valid_ratio=0.05, random_state=42):
         train_poses, valid_poses = list(), list()
 
         for index_subject in range(self.X.shape[0]):
@@ -119,7 +119,7 @@ class MITLoader():
 
         return X, y
 
-class DataGenerator():
+class DataGenerator(tf.keras.utils.Sequence):
     def __init__(self, data_loader, which_set, batch_size):
         self.data_loader = data_loader
         self.batch_size = batch_size
@@ -129,12 +129,19 @@ class DataGenerator():
         }[which_set]
 
         self.num_pos = sum([p.shape[0] for p in self.pos])
+        self.shape_X = [self.batch_size, self.data_loader.length_segment, 1]
+        self.shape_y = [self.batch_size, self.data_loader.length_segment, self.data_loader.target_labels.shape[0]]
 
     def __len__(self):
         return self.num_pos // self.batch_size
 
+    def instance_norm(self, X):
+        return (X - X.mean(axis=0)) / X.std(axis=0)
+    
     def __getitem__(self, index):
-        return self.data_loader.get_batch(self.pos, self.batch_size)
+        X, y = self.data_loader.get_batch(self.pos, self.batch_size)
+        return self.instance_norm(X), y
+
 
 if __name__ == "__main__":
     # testing

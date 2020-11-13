@@ -1,9 +1,10 @@
 import numpy as np
 from scipy.signal import find_peaks
+import tensorflow as tf
 
 def peak_f1(min_peak_distance, min_peak_height, max_delta):
     def f1(y_true, y_pred):
-        # y_true, y_pred = y_true.numpy(), y_pred.numpy() # convert to numpy arrays
+        y_true, y_pred = y_true.numpy(), y_pred.numpy() # convert to numpy arrays
 
         true_positive = np.zeros((y_true.shape[-1], ), dtype=int)
         false_negative = np.zeros((y_true.shape[-1], ), dtype=int)
@@ -30,13 +31,25 @@ def peak_f1(min_peak_distance, min_peak_height, max_delta):
             np.add.at(false_positive, pred_labels, 1)
             np.add.at(false_positive, true_labels[matched_gt_peak], -1)
 
+        print()
         print(true_positive, false_negative, false_positive)
+        
         recall = true_positive / (true_positive + false_negative)
         precision = true_positive / (true_positive + false_positive)
         f1_score = 2.0 * (precision * recall) / (precision + recall)
-        return f1_score
+        return f1_score[~np.isnan(f1_score)]
 
     return f1
+
+def gpu_allow_growth():
+    gpus = tf.config.experimental.list_physical_devices('GPU')
+    if gpus:
+        try:
+            for gpu in gpus:
+                tf.config.experimental.set_memory_growth(gpu, True)
+        except:
+            print('GPU allow growth failed!')
+    return
 
 if __name__ == "__main__":
     from train import MITLoader, DataGenerator
