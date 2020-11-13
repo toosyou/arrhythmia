@@ -14,6 +14,8 @@ jupyterlab = "*"
 tensorflow = "*"
 tslearn = "*"
 better-exceptions = "*"
+scipy = "*"
+importlib-metadata = "==1.7.0"
 
 [requires]
 python_version = "3.6"
