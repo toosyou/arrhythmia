@@ -13,20 +13,22 @@ from wandb.keras import WandbCallback
 from data_utils import MITLoader, DataGenerator
 from callbacks import PerformanceLoger, LogBest
 from model import unet
+from hg_blocks import create_hourglass_network, bottleneck_block
 
 def focal_loss(alpha=2, beta=4):
     def fl(y_true, y_pred):
+        y_pred = K.clip(y_pred, 1e-4, 1 - 1e-4)
         gt_mask = (y_true == 1)
-        gt_loss = K.pow(1 - y_pred[gt_mask], alpha) * K.log(y_pred[gt_mask] + 1e-10)
-        focal_loss = K.pow(1 - y_true[~gt_mask], beta) * K.pow(y_pred[~gt_mask], alpha) * K.log(1 - y_pred[~gt_mask] + 1e-10)
+        gt_loss = K.pow(1 - y_pred[gt_mask], alpha) * K.log(y_pred[gt_mask])
+        focal_loss = K.pow(1 - y_true[~gt_mask], beta) * K.pow(y_pred[~gt_mask], alpha) * K.log(1 - y_pred[~gt_mask])
         return -(K.sum(gt_loss) + K.sum(focal_loss)) / K.sum(K.cast(gt_mask, 'float32')) / K.cast(K.shape(y_true)[0], 'float32')
     return fl
 
 if __name__ == "__main__":
     config = {
         'batch_size': 64,
-        'min_peak_distance': 100,
-        'peak_max_delta': int(100 / 1000 * 360), # ~100ms
+        'min_peak_distance': int(100 * 0.25),
+        'peak_max_delta': int(100 / 1000 * 360 * 0.25), # ~100ms
         'min_peak_height': 0.3,
     }
     wandb.init('arrhythmia', entity='toosyou', 
@@ -38,10 +40,12 @@ if __name__ == "__main__":
 
     print(len(training_set), len(validation_set))
 
-    model = unet(training_set.shape_X[1:], training_set.shape_y[-1])
+    model = create_hourglass_network(mit_loader.target_labels.shape[0],
+                                        2, 32, (mit_loader.length_segment, 1), bottleneck_block)
     model.summary()
+    model.compile(optimizer='adam', loss=focal_loss(), run_eagerly=False)
 
-    model.compile(optimizer='adam', loss=focal_loss())
+    print(model.outputs[0].shape)
 
     model.fit(training_set, validation_data=validation_set, 
                 epochs=500,

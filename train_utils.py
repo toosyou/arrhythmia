@@ -7,7 +7,7 @@ def peak_confusion_matrix(y_true, y_pred, min_peak_distance, min_peak_height, ma
     false_negative = np.zeros((y_true.shape[-1], ), dtype=int)
     false_positive = np.zeros((y_true.shape[-1], ), dtype=int)
 
-    for subject_pred, subject_true in zip(y_true, y_pred):
+    for subject_true, subject_pred in zip(y_true, y_pred):
         pred_peaks, _ = find_peaks(subject_pred.max(axis=-1), distance=min_peak_distance, height=min_peak_height)
         pred_labels = np.argmax(subject_pred[pred_peaks], axis=-1)
 

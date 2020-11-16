@@ -15,10 +15,12 @@ class MITLoader():
         self.config = self.config['MIT']
 
         self.sampling_rate = int(self.config['sampling_rate'])
-        self.heatmap_std = float(self.config['heatmap_std'])
-        self.length_segment = int(float(self.config['length_s']) * 360)
-        self.head_ignore = int(float(self.config['head_ignore_s']) * 360)
-        self.tail_ignore = int(float(self.config['tail_ignore_s']) * 360)
+        self.downsample_ratio = float(self.config['downsample_ratio'])
+        self.heatmap_std = float(self.config['heatmap_std']) * self.downsample_ratio
+        self.length_segment = int(float(self.config['length_s']) * self.sampling_rate)
+        self.output_length = int(self.downsample_ratio * self.length_segment)
+        self.head_ignore = int(float(self.config['head_ignore_s']) * self.sampling_rate)
+        self.tail_ignore = int(float(self.config['tail_ignore_s']) * self.sampling_rate)
 
         self.target_labels, self.minor_labels = self.read_target()
 
@@ -56,12 +58,12 @@ class MITLoader():
         return unnormalized_gaussian
 
     def gt_heatmap(self, peak, label):
-        heatmap = np.zeros((self.length_segment, self.target_labels.shape[0]))
+        heatmap = np.zeros((self.output_length, self.target_labels.shape[0]))
 
-        n_ = np.arange(self.length_segment, dtype=float)
+        n_ = np.arange(self.output_length, dtype=float)
         for index_target, target_label in enumerate(self.target_labels):
             for minor_label in self.minor_labels[target_label]:
-                for p in peak[label == minor_label]:
+                for p in peak[label == minor_label] * self.downsample_ratio:
                     heatmap[:, index_target] += self.gaussian(n_, p, self.heatmap_std)
 
         return heatmap
@@ -101,7 +103,7 @@ class MITLoader():
 
     def get_batch(self, pos, batch_size):
         # random choose subject
-        X, y = np.zeros((batch_size, self.length_segment, 1)), np.zeros((batch_size, self.length_segment, self.target_labels.shape[0]))
+        X, y = np.zeros((batch_size, self.length_segment, 1)), np.zeros((batch_size, self.output_length, self.target_labels.shape[0]))
 
         for batch_index, subject_indice in enumerate(np.random.randint(len(pos), size=batch_size)):
             subject_pos = np.random.choice(pos[subject_indice])
@@ -114,7 +116,7 @@ class MITLoader():
             peak_mask = np.logical_and(subject_peak >= start, subject_peak < end)
 
             X[batch_index] = self.X[subject_indice, start:end]
-            y[batch_index] = self.gt_heatmap(subject_peak[peak_mask] - start, 
+            y[batch_index] = self.gt_heatmap(subject_peak[peak_mask] - start,
                                             subject_label[peak_mask])
 
         return X, y

@@ -2,9 +2,9 @@ from tensorflow.keras.layers import Input, Conv1D, MaxPooling1D, Dropout, UpSamp
 from tensorflow.keras.layers import concatenate
 from tensorflow.keras.models import Model
 
-def unet(input_size = (1024, 1), num_output_channel=5):
-
-    inputs = Input(input_size)
+def unet(input_shape, numer_output_channel):
+    
+    inputs = Input(input_shape)
     conv1 = Conv1D(64, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(inputs)
     conv1 = Conv1D(64, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(conv1)
     pool1 = MaxPooling1D(pool_size=2)(conv1)
@@ -42,7 +42,10 @@ def unet(input_size = (1024, 1), num_output_channel=5):
     merge9 = concatenate([conv1,up9], axis = -1)
     conv9 = Conv1D(64, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(merge9)
     conv9 = Conv1D(64, 3, activation = 'relu', padding = 'same', kernel_initializer = 'he_normal')(conv9)
-    conv10 = Conv1D(num_output_channel, 1, activation = 'sigmoid', padding='same')(conv9)
+    conv10 = Conv1D(numer_output_channel, 1, activation = 'sigmoid', padding='same')(conv9)
 
     model = Model(inputs = inputs, outputs = conv10)
     return model
+
+def stacked_unet(input_shape, number_output_channel):
+    pass
