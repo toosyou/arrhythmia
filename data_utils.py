@@ -9,20 +9,24 @@ import tensorflow as tf
 import better_exceptions; better_exceptions.hook()
 
 class MITLoader():
-    def __init__(self):
+    def __init__(self, wandb_config):
+        self.wandb_config = wandb_config
+
         self.config = configparser.ConfigParser()
         self.config.read(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.ini'))
         self.config = self.config['MIT']
 
         self.sampling_rate = int(self.config['sampling_rate'])
-        self.downsample_ratio = float(self.config['downsample_ratio'])
-        self.heatmap_std = float(self.config['heatmap_std']) * self.downsample_ratio
-        self.length_segment = int(float(self.config['length_s']) * self.sampling_rate)
-        self.output_length = int(self.downsample_ratio * self.length_segment)
-        self.head_ignore = int(float(self.config['head_ignore_s']) * self.sampling_rate)
-        self.tail_ignore = int(float(self.config['tail_ignore_s']) * self.sampling_rate)
+        assert self.sampling_rate == wandb_config.sampling_rate, 'sampling rate mismatched!'
 
-        self.target_labels, self.minor_labels = self.read_target()
+        self.length_segment = int(self.sampling_rate * wandb_config.length_s)
+        self.output_length = int(self.length_segment * wandb_config.downsample_ratio)
+
+        self.head_ignore = int(self.sampling_rate * wandb_config.head_ignore_s)
+        self.tail_ignore = int(self.sampling_rate * wandb_config.tail_ignore_s)
+
+        self.target_labels = np.array(wandb_config.labels)
+        self.minor_labels = self.get_minor_labels()
 
         self.X, self.peak, self.label = self.load_signal()
         self.train_pos, self.valid_pos = self.get_split()
@@ -39,16 +43,13 @@ class MITLoader():
 
         return X, peak, label
 
-    def read_target(self):
-        target_labels = self.config['labels'].split(',')
-        target_labels = np.array([t.strip() for t in target_labels])
-
+    def get_minor_labels(self):
         minor_labels = dict()
-        for label in target_labels:
+        for label in self.target_labels:
             minor_labels[label] = self.config['{}_labels'.format(label)].split(',')
             minor_labels[label] = np.array([t.strip() for t in minor_labels[label]])
 
-        return target_labels, minor_labels
+        return minor_labels
 
     @staticmethod
     def gaussian(x, mean, std, normalize=False):
@@ -63,8 +64,8 @@ class MITLoader():
         n_ = np.arange(self.output_length, dtype=float)
         for index_target, target_label in enumerate(self.target_labels):
             for minor_label in self.minor_labels[target_label]:
-                for p in peak[label == minor_label] * self.downsample_ratio:
-                    heatmap[:, index_target] += self.gaussian(n_, p, self.heatmap_std)
+                for p in peak[label == minor_label] * self.wandb_config.downsample_ratio:
+                    heatmap[:, index_target] += self.gaussian(n_, p, self.wandb_config.heatmap_std)
 
         return heatmap
 
