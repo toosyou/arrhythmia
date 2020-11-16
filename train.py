@@ -45,7 +45,9 @@ if __name__ == "__main__":
                         'labels': [s.strip() for s in config['General']['labels'].split(',')],
 
                         # model
-                        'downsample_ratio': 0.25,
+                        'downsample_ratio': 0.25, # hourglass net
+                        'number_hourglass_modules': 4,
+                        'number_inner_channels': 16,
                     
                         # training
                         'batch_size': 64,
@@ -65,8 +67,11 @@ if __name__ == "__main__":
 
     print(len(training_set), len(validation_set))
 
-    model = create_hourglass_network(mit_loader.target_labels.shape[0],
-                                        2, 32, (mit_loader.length_segment, 1), bottleneck_block)
+    model = create_hourglass_network(len(wandb.config.labels),
+                                        wandb.config.number_hourglass_modules, 
+                                        wandb.config.number_inner_channels,
+                                        (int(wandb.config.sampling_rate * wandb.config.length_s), 1), 
+                                    bottleneck_block)
     model.summary()
     model.compile(optimizer='adam', 
                     loss=focal_loss(length_head_ignore=int(wandb.config.sampling_rate * 
