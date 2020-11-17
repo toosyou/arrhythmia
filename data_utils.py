@@ -147,8 +147,6 @@ class DataGenerator(tf.keras.utils.Sequence):
 
 
 if __name__ == "__main__":
-    # testing
     mit_loader = MITLoader()
-
     train_data_generator = DataGenerator(mit_loader, 'train', 64)
     train_data_generator[0]

@@ -31,7 +31,7 @@ class PerformanceLoger(tf.keras.callbacks.Callback):
             'valid': 'val_'
         }[which_set]
         
-        X, y = predict_set.data_loader.get_batch(predict_set.pos, 256)
+        X, y = predict_set.data_loader.get_batch(predict_set.pos, predict_set.num_pos)
         
         y_pred = self.model.predict(X, batch_size=128)
         y_pred = y_pred[-1] if isinstance(y_pred, list) else y_pred
