@@ -29,7 +29,7 @@ class MITLoader():
         self.minor_labels = self.get_minor_labels()
 
         self.X, self.peak, self.label = self.load_signal()
-        self.train_pos, self.valid_pos = self.get_split()
+        self.train_pos, self.train_pos_p, self.valid_pos, self.valid_pos_p = self.get_split()
 
     def load_signal(self):
         prefix = self.config['data_dir']
@@ -79,44 +79,62 @@ class MITLoader():
 
         usable_label_indices = np.where(usable_mask(subject_label))[0]
         pos = subject_peak[usable_label_indices]
+        label = subject_label[usable_label_indices]
 
         # prevent pos from begin too close to the beginning and the end
-        pos = pos[pos > self.length_segment//2]
-        pos = pos[pos < self.X.shape[1] - self.length_segment//2]
-        return pos
+        label   = label[pos > self.length_segment//2]
+        pos     = pos[pos > self.length_segment//2]
+
+        label   = label[pos < self.X.shape[1] - self.length_segment//2]
+        pos     = pos[pos < self.X.shape[1] - self.length_segment//2]
+        return pos, label
 
     def get_split(self, valid_ratio=0.05, random_state=42):
         train_poses, valid_poses = list(), list()
+        train_pos_p, valid_pos_p = list(), list()
 
         for index_subject in range(self.X.shape[0]):
-            up = self.get_usable_pos(self.peak[index_subject], self.label[index_subject])
+            up, label = self.get_usable_pos(self.peak[index_subject], self.label[index_subject])
 
-            train_pos, valid_pos = train_test_split(up, test_size=valid_ratio, random_state=random_state)
+            train_pos, valid_pos, train_labels, valid_labels = train_test_split(up, label, test_size=valid_ratio, random_state=random_state)
 
             # prevent train positions from being too close to valid positions
             for vp in valid_pos:
-                train_pos = train_pos[np.logical_or(train_pos < vp-self.length_segment, train_pos > vp + self.length_segment )]
+                keep_mask = np.logical_or(train_pos < vp-self.length_segment, train_pos > vp + self.length_segment)
+                train_pos = train_pos[keep_mask]
+                train_labels = train_labels[keep_mask]
 
             train_poses.append(train_pos)
             valid_poses.append(valid_pos)
 
-        return train_poses, valid_poses
+            # calculate chosen probability for oversampling
+            unique, counts = np.unique(train_labels, return_counts=True)
+            p = np.zeros((train_pos.shape[0], ), dtype=float)
 
-    def get_batch(self, pos, batch_size):
+            for uq, cnt in zip(unique, counts):
+                p[train_labels == uq] = 1. / cnt / unique.shape[0]
+            train_pos_p.append(p)
+
+            # don't oversample validation set
+            valid_pos_p.append(np.ones((valid_pos.shape[0], )) / valid_pos.shape[0])
+
+        return train_poses, train_pos_p, valid_poses, valid_pos_p
+
+    def get_batch(self, pos, pos_p, batch_size):
         # random choose subject
         X, y = np.zeros((batch_size, self.length_segment, 1)), np.zeros((batch_size, self.output_length, self.target_labels.shape[0]))
 
-        for batch_index, subject_indice in enumerate(np.random.randint(len(pos), size=batch_size)):
-            subject_pos = np.random.choice(pos[subject_indice])
-            subject_peak = self.peak[subject_indice]
-            subject_label = self.label[subject_indice]
+        for batch_index, subject_index in enumerate(np.random.randint(len(pos), size=batch_size)):
+            subject_pos = np.random.choice(pos[subject_index], p=pos_p[subject_index])
+            subject_peak = self.peak[subject_index]
+            subject_label = self.label[subject_index]
 
             start = subject_pos-self.length_segment//2
             end = start+self.length_segment
 
             peak_mask = np.logical_and(subject_peak >= start, subject_peak < end)
 
-            X[batch_index] = self.X[subject_indice, start:end]
+            X[batch_index] = self.X[subject_index, start:end]
             y[batch_index] = self.gt_heatmap(subject_peak[peak_mask] - start,
                                             subject_label[peak_mask])
 
@@ -130,6 +148,10 @@ class DataGenerator(tf.keras.utils.Sequence):
             'train': self.data_loader.train_pos,
             'valid': self.data_loader.valid_pos
         }[which_set]
+        self.pos_p = {
+            'train': self.data_loader.train_pos_p,
+            'valid': self.data_loader.valid_pos_p
+        }[which_set]
 
         self.num_pos = sum([p.shape[0] for p in self.pos])
         self.shape_X = [self.batch_size, self.data_loader.length_segment, 1]
@@ -142,7 +164,7 @@ class DataGenerator(tf.keras.utils.Sequence):
         return (X - X.mean(axis=0)) / X.std(axis=0)
     
     def __getitem__(self, index):
-        X, y = self.data_loader.get_batch(self.pos, self.batch_size)
+        X, y = self.data_loader.get_batch(self.pos, self.pos_p, self.batch_size)
         return self.instance_norm(X), y
 
 

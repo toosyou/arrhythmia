@@ -92,5 +92,5 @@ if __name__ == "__main__":
                                         ['{}_f1_score'.format(l) for l in mit_loader.target_labels] + 
                                         ['val_{}_f1_score'.format(l) for l in mit_loader.target_labels] ),
                     WandbCallback(),
-                    tf.keras.callbacks.EarlyStopping(patience=10)
+                    tf.keras.callbacks.EarlyStopping(patience=20)
                 ], )
