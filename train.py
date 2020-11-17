@@ -3,7 +3,6 @@ import configparser
 
 import tensorflow as tf
 from tensorflow.keras import backend as K
-from tensorflow.python.keras.backend import update
 from train_utils import gpu_allow_growth; gpu_allow_growth()
 
 import better_exceptions; better_exceptions.hook()
@@ -13,7 +12,6 @@ from wandb.keras import WandbCallback
 
 from data_utils import MITLoader, DataGenerator
 from callbacks import PerformanceLoger, LogBest
-from model import unet
 from hg_blocks import create_hourglass_network, bottleneck_block
 
 def focal_loss(length_head_ignore=0, length_tail_ignore=0, alpha=2, beta=4):
@@ -39,13 +37,13 @@ if __name__ == "__main__":
                 config={# data
                         'sampling_rate': 360,
                         'length_s': 12,
-                        'head_ignore_s': 1,
-                        'tail_ignore_s': 1,
+                        'head_ignore_s': 0.5,
+                        'tail_ignore_s': 0.5,
                         'heatmap_std': 10,
                         'labels': [s.strip() for s in config['General']['labels'].split(',')],
 
                         # model
-                        'downsample_ratio': 0.25, # hourglass net
+                        'downsample_ratio': 1/4, # hourglass net
                         'number_hourglass_modules': 4,
                         'number_inner_channels': 16,
                     
@@ -75,13 +73,13 @@ if __name__ == "__main__":
     model.summary()
     model.compile(optimizer='adam', 
                     loss=focal_loss(length_head_ignore=int(wandb.config.sampling_rate * 
-                                                            wandb.config.head_ignore_s),
+                                                            wandb.config.head_ignore_s *
+                                                            wandb.config.downsample_ratio),
                                     length_tail_ignore=int(wandb.config.sampling_rate * 
-                                                            wandb.config.tail_ignore_s)),
+                                                            wandb.config.tail_ignore_s*
+                                                            wandb.config.downsample_ratio)),
                     run_eagerly=False)
-
-    print(model.outputs[0].shape)
-
+                    
     model.fit(training_set, validation_data=validation_set, 
                 epochs=500,
                 callbacks=[
@@ -94,5 +92,5 @@ if __name__ == "__main__":
                                         ['{}_f1_score'.format(l) for l in mit_loader.target_labels] + 
                                         ['val_{}_f1_score'.format(l) for l in mit_loader.target_labels] ),
                     WandbCallback(),
-                    # tf.keras.callbacks.EarlyStopping(patience=10)
+                    tf.keras.callbacks.EarlyStopping(patience=10)
                 ], )
