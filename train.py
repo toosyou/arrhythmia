@@ -46,6 +46,7 @@ if __name__ == "__main__":
                         'downsample_ratio': 1/4, # hourglass net
                         'number_hourglass_modules': 4,
                         'number_inner_channels': 16,
+                        'hourglass_module_layers': 5,
                     
                         # training
                         'batch_size': 64,
@@ -69,7 +70,8 @@ if __name__ == "__main__":
                                         wandb.config.number_hourglass_modules, 
                                         wandb.config.number_inner_channels,
                                         (int(wandb.config.sampling_rate * wandb.config.length_s), 1), 
-                                    bottleneck_block)
+                                    bottleneck_block,
+                                    wandb.config.hourglass_module_layers)
     model.summary()
     model.compile(optimizer='adam', 
                     loss=focal_loss(length_head_ignore=int(wandb.config.sampling_rate * 
