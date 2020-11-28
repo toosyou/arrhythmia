@@ -65,7 +65,7 @@ class MITLoader():
         for index_target, target_label in enumerate(self.target_labels):
             for minor_label in self.minor_labels[target_label]:
                 for p in peak[label == minor_label] * self.wandb_config.downsample_ratio:
-                    heatmap[:, index_target] += self.gaussian(n_, p, self.wandb_config.heatmap_std)
+                    heatmap[:, index_target] += self.gaussian(n_, p, self.wandb_config.heatmap_std * self.wandb_config.downsample_ratio)
 
         return heatmap
 
