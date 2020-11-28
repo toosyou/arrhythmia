@@ -44,8 +44,8 @@ if __name__ == "__main__":
 
                         # model
                         'downsample_ratio': 1/4, # hourglass net
-                        'number_hourglass_modules': 4,
-                        'number_inner_channels': 16,
+                        'number_hourglass_modules': 3,
+                        'number_inner_channels': 64,
                         'hourglass_module_layers': 5,
                     
                         # training
@@ -64,7 +64,7 @@ if __name__ == "__main__":
     training_set = DataGenerator(mit_loader, 'train', wandb.config.batch_size)
     validation_set = DataGenerator(mit_loader, 'valid', wandb.config.batch_size)
 
-    print(len(training_set), len(validation_set))
+    print('#batch_train, #batch_valid: {}, {}'.format(len(training_set), len(validation_set)))
 
     model = create_hourglass_network(len(wandb.config.labels),
                                         wandb.config.number_hourglass_modules, 

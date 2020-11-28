@@ -1,8 +1,11 @@
 import tensorflow as tf
 from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Input, Conv1D, Add, BatchNormalization, MaxPooling1D, UpSampling1D
+from tensorflow.keras.layers import Input, Conv1D, Add, MaxPooling1D, UpSampling1D, concatenate
+from tensorflow.keras.layers import BatchNormalization, LayerNormalization
 from tensorflow.keras.activations import sigmoid
 from tensorflow.keras import backend as K
+
+from distance import MultiHeadDistanceLayer
 
 class PaddingLike(tf.keras.layers.Layer):
     def call(self, inputs, **kwargs):
@@ -30,10 +33,15 @@ def create_hourglass_network(num_classes, num_stacks, num_channels, input_shape,
     model = Model(inputs=input, outputs=outputs)
     return model
 
-
 def hourglass_module(bottom, num_classes, num_channels, bottleneck, module_layers, hgid):
     # create left features , f1, f2, f4, and f8
     left_features = create_left_half_blocks(bottom, bottleneck, hgid, num_channels, module_layers)
+
+    # distance1 = distance_module(left_features[1], num_channels, max_distance=60)
+    distance2 = distance_module(left_features[2], num_channels, max_distance=30)
+
+    # left_features[1] = concatenate([left_features[1], distance1])
+    left_features[2] = concatenate([left_features[2], distance2])
 
     # create right features, connect with left features
     rf1 = create_right_half_blocks(left_features, bottleneck, hgid, num_channels)
@@ -44,6 +52,18 @@ def hourglass_module(bottom, num_classes, num_channels, bottleneck, module_layer
 
     return head_next_stage, head_parts
 
+def distance_module(x, num_channels, num_heads=4, max_distance=30):
+    distance_layer = MultiHeadDistanceLayer(num_heads, num_channels, 
+                                            'local', num_channels//num_heads, 
+                                            distance_norm=False, max_distance=max_distance,
+                                            smooth_embedding_ratio=6)
+    distance_layer = tf.recompute_grad(distance_layer)
+
+    distance = distance_layer(x)
+    # distance = BatchNormalization()(distance)
+    distance = LayerNormalization()(distance)
+
+    return distance
 
 def bottleneck_block(bottom, num_out_channels, block_name):
     # skip layer
