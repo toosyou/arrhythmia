@@ -31,11 +31,14 @@ class PerformanceLoger(tf.keras.callbacks.Callback):
             'valid': 'val_'
         }[which_set]
         
-        X, y = predict_set.data_loader.get_batch(predict_set.pos, predict_set.pos_p, predict_set.num_pos)
+        X, y = predict_set.data_loader.get_batch(predict_set.pos, predict_set.pos_p, predict_set.num_pos // 10)
         
         y_pred = self.model.predict(X, batch_size=128)
         y_pred = y_pred[-1] if isinstance(y_pred, list) else y_pred
-        true_positive, false_negative, false_positive = peak_confusion_matrix(y, y_pred, 
+
+        head_ignore, tail_ignore = predict_set.data_loader.head_ignore, predict_set.data_loader.tail_ignore
+        true_positive, false_negative, false_positive = peak_confusion_matrix(y[:, head_ignore: -tail_ignore, :], 
+                                                                                y_pred[:, head_ignore: -tail_ignore, :], 
                                                                                 self.min_peak_distance,
                                                                                 self.min_peak_height,
                                                                                 self.max_delta)
