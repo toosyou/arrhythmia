@@ -2,10 +2,8 @@ import os
 from typing import Generator
 import numpy as np
 import configparser
-from sklearn.model_selection import train_test_split
+from scipy import signal
 from scipy.interpolate import CubicSpline
-
-
 import tensorflow as tf
 
 import better_exceptions; better_exceptions.hook()
@@ -18,8 +16,23 @@ class MITLoader():
         self.config.read(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.ini'))
         self.config = self.config['MIT']
 
-        self.sampling_rate = int(self.config['sampling_rate'])
-        assert self.sampling_rate == wandb_config.sampling_rate, 'sampling rate mismatched!'
+        self.original_sampling_rate = int(self.config['sampling_rate'])
+
+        # load data
+        self.which_set = which_set
+        self.index = {
+            'train': np.array(wandb_config.train_index),
+            'valid': np.array(wandb_config.val_index)
+        }[which_set] 
+        self.X, self.peak, self.label = self.load_signal()
+
+        if self.original_sampling_rate != self.wandb_config.sampling_rate:
+            print('MIT sampling rate mismatched! Performing resampling!')
+            self.X, self.peak = self.data_resample(self.X, self.peak,
+                                                    self.original_sampling_rate,
+                                                    self.wandb_config.sampling_rate,
+                                                    "interpolate")
+        self.sampling_rate = self.wandb_config.sampling_rate
 
         self.length_segment = int(self.sampling_rate * wandb_config.length_s)
         self.output_length = int(self.length_segment * wandb_config.downsample_ratio)
@@ -30,28 +43,16 @@ class MITLoader():
         self.target_labels = np.array(wandb_config.labels)
         self.minor_labels = self.get_minor_labels()
 
-        self.which_set = which_set
-
-        self.index = {
-            'train': np.array(wandb_config.train_index),
-            'valid': np.array(wandb_config.val_index)
-        }[which_set] 
-
-        self.X, self.peak, self.label = self.load_signal()
         self.pos, self.pos_p = self.get_split()
 
     def data_resample(self, X, peak, orignal_rate, new_rate, mode):
-
-        new_X = []
-        new_peak = []
+        new_X, new_peak = list(), list()
         for i in range(X.shape[0]):
-
             if mode == "Fourier":
                 new_X.append(signal.resample(X[i], X[i].shape[0]*new_rate//orignal_rate))
                 new_peak.append(peak[i]*new_rate//orignal_rate)
 
             elif mode == "interpolate":
-                
                 n = X[i].shape[0]
                 T = n/orignal_rate
                 m = int(new_rate * T +1)
@@ -59,12 +60,9 @@ class MITLoader():
                 cs  = CubicSpline(t,X[i])
                 t_p = [(2*(i+1)-1)*T/(2*m) for i in range(m)]
                 new_X.append(cs(t_p))
-                new_peak.append(int(peak[i]/orignal_rate*new_rate))
+                new_peak.append((peak[i]/orignal_rate*new_rate).astype(int))
 
-        new_X = np.array(new_X)
-        new_peak = np.array(new_peak)
-
-        return new_X, new_peak
+        return np.array(new_X), np.array(new_peak)
 
     def load_signal(self):
         prefix = self.config['data_dir']
@@ -73,10 +71,8 @@ class MITLoader():
         peak = np.load(os.path.join(prefix, 'MIT_peak.npy'), allow_pickle=True)[self.index]
         label = np.load(os.path.join(prefix, 'MIT_label.npy'), allow_pickle=True)[self.index]
 
-        X, peak = self.data_resample(X, peak, 360, 250, "interpolate")
-
-        peak = [np.array(p) for p in peak]
-        label = [np.array(l) for l in label]
+        # convert to lists of numpy arrays
+        peak, label = [np.array(p) for p in peak], [np.array(l) for l in label]
 
         return X, peak, label
 

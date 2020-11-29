@@ -35,11 +35,12 @@ if __name__ == "__main__":
 
     wandb.init('arrhythmia', entity=config['General']['entity'], 
                 config={# data
-                        'sampling_rate': 360,
+                        'sampling_rate': 250,
                         'length_s': 12,
                         'head_ignore_s': 0.5,
                         'tail_ignore_s': 0.5,
                         'heatmap_std': 10,
+
                         'labels': [s.strip() for s in config['General']['labels'].split(',')],
                         'train_index' : [int(s.strip()) for s in config['MIT']['train_index'].split(',')],
                         'test_index' : [int(s.strip()) for s in config['MIT']['test_index'].split(',')],
