@@ -41,7 +41,10 @@ if __name__ == "__main__":
                         'tail_ignore_s': 0.5,
                         'heatmap_std': 10,
                         'labels': [s.strip() for s in config['General']['labels'].split(',')],
-
+                        'train_index' : [int(s.strip()) for s in config['MIT']['train_index'].split(',')],
+                        'test_index' : [int(s.strip()) for s in config['MIT']['test_index'].split(',')],
+                        'val_index' : [int(s.strip()) for s in config['MIT']['val_index'].split(',')],
+                    
                         # model
                         'downsample_ratio': 1/4, # hourglass net
                         'number_hourglass_modules': 3,
@@ -60,9 +63,10 @@ if __name__ == "__main__":
         'min_peak_height': 0.3,
     })
 
-    mit_loader = MITLoader(wandb.config)
-    training_set = DataGenerator(mit_loader, 'train', wandb.config.batch_size)
-    validation_set = DataGenerator(mit_loader, 'valid', wandb.config.batch_size)
+    mit_loader_train = MITLoader('train', wandb.config)
+    mit_loader_val = MITLoader('valid', wandb.config)
+    training_set = DataGenerator(mit_loader_train, wandb.config.batch_size)
+    validation_set = DataGenerator(mit_loader_val, wandb.config.batch_size)
 
     print('#batch_train, #batch_valid: {}, {}'.format(len(training_set), len(validation_set)))
 
@@ -86,13 +90,13 @@ if __name__ == "__main__":
                 epochs=500,
                 callbacks=[
                     PerformanceLoger(training_set, validation_set,
-                                        mit_loader.target_labels,
+                                        mit_loader_train.target_labels,
                                         wandb.config.min_peak_distance,
                                         wandb.config.min_peak_height,
                                         wandb.config.peak_max_delta),
                     LogBest(records=['val_loss', 'loss',] + 
-                                        ['{}_f1_score'.format(l) for l in mit_loader.target_labels] + 
-                                        ['val_{}_f1_score'.format(l) for l in mit_loader.target_labels] ),
+                                        ['{}_f1_score'.format(l) for l in mit_loader_train.target_labels] + 
+                                        ['val_{}_f1_score'.format(l) for l in mit_loader_train.target_labels] ),
                     WandbCallback(),
                     tf.keras.callbacks.EarlyStopping(patience=20)
                 ], )

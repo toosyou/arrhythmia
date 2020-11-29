@@ -3,13 +3,15 @@ from typing import Generator
 import numpy as np
 import configparser
 from sklearn.model_selection import train_test_split
+from scipy.interpolate import CubicSpline
+
 
 import tensorflow as tf
 
 import better_exceptions; better_exceptions.hook()
 
 class MITLoader():
-    def __init__(self, wandb_config):
+    def __init__(self, which_set, wandb_config):
         self.wandb_config = wandb_config
 
         self.config = configparser.ConfigParser()
@@ -28,15 +30,50 @@ class MITLoader():
         self.target_labels = np.array(wandb_config.labels)
         self.minor_labels = self.get_minor_labels()
 
+        self.which_set = which_set
+
+        self.index = {
+            'train': np.array(wandb_config.train_index),
+            'valid': np.array(wandb_config.val_index)
+        }[which_set] 
+
         self.X, self.peak, self.label = self.load_signal()
-        self.train_pos, self.train_pos_p, self.valid_pos, self.valid_pos_p = self.get_split()
+        self.pos, self.pos_p = self.get_split()
+
+    def data_resample(self, X, peak, orignal_rate, new_rate, mode):
+
+        new_X = []
+        new_peak = []
+        for i in range(X.shape[0]):
+
+            if mode == "Fourier":
+                new_X.append(signal.resample(X[i], X[i].shape[0]*new_rate//orignal_rate))
+                new_peak.append(peak[i]*new_rate//orignal_rate)
+
+            elif mode == "interpolate":
+                
+                n = X[i].shape[0]
+                T = n/orignal_rate
+                m = int(new_rate * T +1)
+                t = [(2*(i+1)-1)*T/(2*n) for i in range(n)]
+                cs  = CubicSpline(t,X[i])
+                t_p = [(2*(i+1)-1)*T/(2*m) for i in range(m)]
+                new_X.append(cs(t_p))
+                new_peak.append(int(peak[i]/orignal_rate*new_rate))
+
+        new_X = np.array(new_X)
+        new_peak = np.array(new_peak)
+
+        return new_X, new_peak
 
     def load_signal(self):
         prefix = self.config['data_dir']
 
-        X = np.load(os.path.join(prefix, 'MIT_train_data_denoise.npy'), allow_pickle=True)
-        peak = np.load(os.path.join(prefix, 'MIT_train_peak.npy'), allow_pickle=True)
-        label = np.load(os.path.join(prefix, 'MIT_train_label.npy'), allow_pickle=True)
+        X = np.load(os.path.join(prefix, 'MIT_data_denoise.npy'), allow_pickle=True)[self.index]
+        peak = np.load(os.path.join(prefix, 'MIT_peak.npy'), allow_pickle=True)[self.index]
+        label = np.load(os.path.join(prefix, 'MIT_label.npy'), allow_pickle=True)[self.index]
+
+        X, peak = self.data_resample(X, peak, 360, 250, "interpolate")
 
         peak = [np.array(p) for p in peak]
         label = [np.array(l) for l in label]
@@ -90,35 +127,27 @@ class MITLoader():
         return pos, label
 
     def get_split(self, valid_ratio=0.05, random_state=42):
-        train_poses, valid_poses = list(), list()
-        train_pos_p, valid_pos_p = list(), list()
+        poses = list()
+        pos_p  = list()
 
         for index_subject in range(self.X.shape[0]):
-            up, label = self.get_usable_pos(self.peak[index_subject], self.label[index_subject])
+            pos, label = self.get_usable_pos(self.peak[index_subject], self.label[index_subject])
 
-            train_pos, valid_pos, train_labels, valid_labels = train_test_split(up, label, test_size=valid_ratio, random_state=random_state)
+            poses.append(pos)
 
-            # prevent train positions from being too close to valid positions
-            for vp in valid_pos:
-                keep_mask = np.logical_or(train_pos < vp-self.length_segment, train_pos > vp + self.length_segment)
-                train_pos = train_pos[keep_mask]
-                train_labels = train_labels[keep_mask]
+            if self.which_set == "train":
+                # calculate chosen probability for oversampling
+                unique, counts = np.unique(label, return_counts=True)
+                p = np.zeros((pos.shape[0], ), dtype=float)
 
-            train_poses.append(train_pos)
-            valid_poses.append(valid_pos)
-
-            # calculate chosen probability for oversampling
-            unique, counts = np.unique(train_labels, return_counts=True)
-            p = np.zeros((train_pos.shape[0], ), dtype=float)
-
-            for uq, cnt in zip(unique, counts):
-                p[train_labels == uq] = 1. / cnt / unique.shape[0]
-            train_pos_p.append(p)
-
-            # don't oversample validation set
-            valid_pos_p.append(np.ones((valid_pos.shape[0], )) / valid_pos.shape[0])
-
-        return train_poses, train_pos_p, valid_poses, valid_pos_p
+                for uq, cnt in zip(unique, counts):
+                    p[label == uq] = 1. / cnt / unique.shape[0]
+                pos_p.append(p)
+            else:
+                # don't oversample validation set
+                pos_p.append(np.ones((pos.shape[0], )) / pos.shape[0])
+                
+        return poses,pos_p
 
     def get_batch(self, pos, pos_p, batch_size):
         # random choose subject
@@ -141,17 +170,11 @@ class MITLoader():
         return X, y
 
 class DataGenerator(tf.keras.utils.Sequence):
-    def __init__(self, data_loader, which_set, batch_size):
+    def __init__(self, data_loader, batch_size):
         self.data_loader = data_loader
         self.batch_size = batch_size
-        self.pos = {
-            'train': self.data_loader.train_pos,
-            'valid': self.data_loader.valid_pos
-        }[which_set]
-        self.pos_p = {
-            'train': self.data_loader.train_pos_p,
-            'valid': self.data_loader.valid_pos_p
-        }[which_set]
+        self.pos = self.data_loader.pos
+        self.pos_p = self.data_loader.pos_p
 
         self.num_pos = sum([p.shape[0] for p in self.pos])
         self.shape_X = [self.batch_size, self.data_loader.length_segment, 1]
@@ -169,6 +192,6 @@ class DataGenerator(tf.keras.utils.Sequence):
 
 
 if __name__ == "__main__":
-    mit_loader = MITLoader()
-    train_data_generator = DataGenerator(mit_loader, 'train', 64)
+    mit_loader = MITLoader(which_set = 'train')
+    train_data_generator = DataGenerator(mit_loader, 64)
     train_data_generator[0]
