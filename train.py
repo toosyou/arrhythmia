@@ -33,7 +33,7 @@ if __name__ == "__main__":
     config = configparser.ConfigParser()
     config.read('./config.ini')
 
-    wandb.init('arrhythmia-master', entity=config['General']['entity'], 
+    wandb.init('arrhythmia', entity=config['General']['entity'], 
                 config={# data
                         'sampling_rate': 360,
                         'length_s': 12,
@@ -44,11 +44,11 @@ if __name__ == "__main__":
                         'train_index' : [int(s.strip()) for s in config['MIT']['train_index'].split(',')],
                         'test_index' : [int(s.strip()) for s in config['MIT']['test_index'].split(',')],
                         'val_index' : [int(s.strip()) for s in config['MIT']['val_index'].split(',')],
-
+                    
                         # model
                         'downsample_ratio': 1/4, # hourglass net
-                        'number_hourglass_modules': 4,
-                        'number_inner_channels': 16,
+                        'number_hourglass_modules': 3,
+                        'number_inner_channels': 64,
                         'hourglass_module_layers': 5,
                     
                         # training
@@ -68,7 +68,7 @@ if __name__ == "__main__":
     training_set = DataGenerator(mit_loader_train, wandb.config.batch_size)
     validation_set = DataGenerator(mit_loader_val, wandb.config.batch_size)
 
-    print(len(training_set), len(validation_set))
+    print('#batch_train, #batch_valid: {}, {}'.format(len(training_set), len(validation_set)))
 
     model = create_hourglass_network(len(wandb.config.labels),
                                         wandb.config.number_hourglass_modules, 

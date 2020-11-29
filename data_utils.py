@@ -64,8 +64,7 @@ class MITLoader():
         new_X = np.array(new_X)
         new_peak = np.array(new_peak)
 
-        return new_X,new_peak
-
+        return new_X, new_peak
 
     def load_signal(self):
         prefix = self.config['data_dir']
@@ -103,7 +102,7 @@ class MITLoader():
         for index_target, target_label in enumerate(self.target_labels):
             for minor_label in self.minor_labels[target_label]:
                 for p in peak[label == minor_label] * self.wandb_config.downsample_ratio:
-                    heatmap[:, index_target] += self.gaussian(n_, p, self.wandb_config.heatmap_std)
+                    heatmap[:, index_target] += self.gaussian(n_, p, self.wandb_config.heatmap_std * self.wandb_config.downsample_ratio)
 
         return heatmap
 
@@ -127,7 +126,6 @@ class MITLoader():
         pos     = pos[pos < self.X.shape[1] - self.length_segment//2]
         return pos, label
 
-
     def get_split(self, valid_ratio=0.05, random_state=42):
         poses = list()
         pos_p  = list()
@@ -148,7 +146,7 @@ class MITLoader():
             else:
                 # don't oversample validation set
                 pos_p.append(np.ones((pos.shape[0], )) / pos.shape[0])
-
+                
         return poses,pos_p
 
     def get_batch(self, pos, pos_p, batch_size):
