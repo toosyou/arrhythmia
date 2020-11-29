@@ -157,7 +157,7 @@ class DistanceNorm(tf.keras.layers.Layer):
         paddings = [[0, 0]] * (tf.shape(source).shape[0] - 1) + [[1, 1]]
         source = tf.pad(source, paddings)
 
-        indices = K.clip(indices + 1, 0, K.cast(max_distance, tf.float32) - 1)
+        indices = K.clip(indices + 1, 0, K.cast(max_distance, tf.float32)+1)
         integer_indices = K.cast(indices, tf.int32)
 
         floor_indices, ceil_indices = integer_indices, integer_indices + 1
