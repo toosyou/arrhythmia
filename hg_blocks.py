@@ -55,7 +55,7 @@ def hourglass_module(bottom, num_classes, num_channels, bottleneck, module_layer
 def distance_module(x, num_channels, num_heads=4, max_distance=30):
     distance_layer = MultiHeadDistanceLayer(num_heads, num_channels, 
                                             'local', num_channels//num_heads, 
-                                            distance_norm=False, max_distance=max_distance,
+                                            distance_norm=True, max_distance=max_distance,
                                             smooth_embedding_ratio=6)
     distance_layer = tf.recompute_grad(distance_layer)
 
