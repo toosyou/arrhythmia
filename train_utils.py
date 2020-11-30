@@ -45,11 +45,3 @@ def gpu_allow_growth():
         except:
             print('GPU allow growth failed!')
     return
-
-if __name__ == "__main__":
-    from train import MITLoader, DataGenerator
-
-    mit_loader = MITLoader()
-    training_set = DataGenerator(mit_loader, 'train', 64)
-    X, y = training_set[0]
-    peak_f1(100, 0.5, 10)(y, y)
