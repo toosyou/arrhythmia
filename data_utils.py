@@ -31,7 +31,7 @@ class MITLoader():
             self.X, self.peak = self.data_resample(self.X, self.peak,
                                                     self.original_sampling_rate,
                                                     self.wandb_config.sampling_rate,
-                                                    "interpolate")
+                                                    "Fourier")
         self.sampling_rate = self.wandb_config.sampling_rate
 
         self.length_segment = int(self.sampling_rate * wandb_config.length_s)
@@ -89,6 +89,9 @@ class MITLoader():
         unnormalized_gaussian = np.exp(-0.5 * ((x - mean)**2) / (std**2))
         if normalize:
             return (1. / (std * 2 * np.pi)) * unnormalized_gaussian
+
+        # force output[mean] == 1
+        unnormalized_gaussian /= unnormalized_gaussian.max()
         return unnormalized_gaussian
 
     def gt_heatmap(self, peak, label):
@@ -143,7 +146,7 @@ class MITLoader():
                 # don't oversample validation set
                 pos_p.append(np.ones((pos.shape[0], )) / pos.shape[0])
                 
-        return poses,pos_p
+        return poses, pos_p
 
     def get_batch(self, pos, pos_p, batch_size):
         # random choose subject

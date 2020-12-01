@@ -40,7 +40,7 @@ class MultiHeadDistanceLayer(tf.keras.layers.Layer):
         self.key_embedding      = tf.keras.layers.Dense(self.num_head * self.head_dim, use_bias=True)
         self.value_embedding    = tf.keras.layers.Dense(self.num_head, use_bias=False)
 
-        self.distance_pe = self.add_weight(shape=(self.num_head, 1, self.head_dim, 2 * self.max_distance + 1),
+        self.distance_pe = self.add_weight(shape=(self.num_head, self.head_dim, (2 * self.max_distance + 1) // self.smooth_embedding_ratio, 1),
                                             initializer='GlorotNormal',
                                             trainable=True, name='distance_pe')
         self.u_pe        = self.add_weight(shape=(self.num_head, 1, 1, self.head_dim),
@@ -77,15 +77,15 @@ class MultiHeadDistanceLayer(tf.keras.layers.Layer):
         attention = K.reverse(attention, axes=(-2, -1))
 
         # relative positional encoding
-        attention = attention + tf.matmul(multi_head_query + self.v_pe, self.distance_pe)   # (num_head, ?, data_length, 2 * max_d + 1)
+        smooth_distance_pe = tf.image.resize(self.distance_pe, [self.head_dim, 2 * self.max_distance + 1], 'bilinear') # (num_head, head_dim, 2 * max_d + 1, 1)
+        smooth_distance_pe = K.squeeze(K.expand_dims(smooth_distance_pe, axis=1), axis=-1) # (num_head, 1, head_dim, 2 * max_d + 1)
+
+        attention = attention + tf.matmul(multi_head_query + self.v_pe, smooth_distance_pe)   # (num_head, ?, data_length, 2 * max_d + 1)
         
         attention = attention * (float(self.head_dim) ** -0.5)
         attention = tf.keras.layers.Softmax()(attention)
 
         attention = attention * multi_head_value[..., None]
-
-        # smoothen
-        attention = K.pool2d(attention, (1, self.window_size), (1, 1), 'same', 'channels_first', 'avg')
 
         if self.distance_norm:
             attention = DistanceNorm()(attention)

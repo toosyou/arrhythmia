@@ -37,11 +37,13 @@ def hourglass_module(bottom, num_classes, num_channels, bottleneck, module_layer
     # create left features , f1, f2, f4, and f8
     left_features = create_left_half_blocks(bottom, bottleneck, hgid, num_channels, module_layers)
 
-    # distance1 = distance_module(left_features[1], num_channels, max_distance=60)
-    distance2 = distance_module(left_features[2], num_channels, max_distance=30)
+    distance1 = distance_module(left_features[1], num_channels, max_distance=60)
+    # distance2 = distance_module(left_features[2], num_channels, max_distance=30)
+    # distance3 = distance_module(left_features[3], num_channels, max_distance=15)
 
-    # left_features[1] = concatenate([left_features[1], distance1])
-    left_features[2] = concatenate([left_features[2], distance2])
+    left_features[1] = concatenate([left_features[1], distance1])
+    # left_features[2] = concatenate([left_features[2], distance2])
+    # left_features[3] = concatenate([left_features[3], distance3])
 
     # create right features, connect with left features
     rf1 = create_right_half_blocks(left_features, bottleneck, hgid, num_channels)
@@ -52,11 +54,11 @@ def hourglass_module(bottom, num_classes, num_channels, bottleneck, module_layer
 
     return head_next_stage, head_parts
 
-def distance_module(x, num_channels, num_heads=4, max_distance=30):
+def distance_module(x, num_channels, num_heads=8, max_distance=30):
     distance_layer = MultiHeadDistanceLayer(num_heads, num_channels, 
                                             'local', num_channels//num_heads, 
-                                            distance_norm=True, max_distance=max_distance,
-                                            smooth_embedding_ratio=6)
+                                            distance_norm=False, max_distance=max_distance,
+                                            smooth_embedding_ratio=8)
     distance_layer = tf.recompute_grad(distance_layer)
 
     distance = distance_layer(x)

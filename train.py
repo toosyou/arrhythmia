@@ -49,8 +49,8 @@ if __name__ == "__main__":
                         # model
                         'downsample_ratio': 1/4, # hourglass net
                         'number_hourglass_modules': 3,
-                        'number_inner_channels': 64,
-                        'hourglass_module_layers': 5,
+                        'number_inner_channels': 16,
+                        'hourglass_module_layers': 4,
                     
                         # training
                         'batch_size': 64,
