@@ -88,7 +88,15 @@ class MultiHeadDistanceLayer(tf.keras.layers.Layer):
         attention = attention * multi_head_value[..., None]
 
         if self.distance_norm:
+            # (num_head, ?, data_length, 2 * max_d + 1) -> (?, num_head * data_length, 2 * max_d + 1)
+            attention = K.permute_dimensions(attention, (1, 0, 2, 3))
+            attention = K.reshape(attention, (-1, self.num_head * data_length, 2 * self.max_distance + 1))
+
             attention = DistanceNorm()(attention)
+
+            # (?, num_head * data_length, 2 * max_d + 1) -> (num_head, ?, data_length, 2 * max_d + 1)
+            attention = K.reshape(attention, (-1, self.num_head, data_length, 2 * self.max_distance + 1))
+            attention = K.permute_dimensions(attention, (1, 0, 2, 3))
         
         if self.mode == 'global':
             output = K.sum(attention, axis=2)                   # (num_head, ?, 2 * max_d + 1)
@@ -99,7 +107,7 @@ class MultiHeadDistanceLayer(tf.keras.layers.Layer):
             output = K.reshape(output, (-1, data_length, self.output_dim * self.num_head))  # (?, data_length, output_dim * num_head)
 
         if return_attention:
-            return output, K.permute_dimensions(attention, (1, 2, 3, 0)) # (?, data_length, data_length, num_head)
+            return output, K.permute_dimensions(attention, (1, 2, 3, 0)) # (?, data_length, 2 * max_d + 1, num_head)
         return output
 
     def compute_output_shape(self, input_shape):
