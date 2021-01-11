@@ -100,13 +100,6 @@ if __name__ == "__main__":
 
     training_set = DataGenerator([mit_loader_train,aha_loader_train], wandb.config.batch_size)
     validation_set = DataGenerator([mit_loader_val,aha_loader_val], wandb.config.batch_size)
-    #mit_validation_set = DataGenerator(mit_loader_val, wandb.config.batch_size)
-    #aha_training_set = DataGenerator(aha_loader_train, wandb.config.batch_size)
-    #aha_validation_set = DataGenerator(aha_loader_val, wandb.config.batch_size)
-
-
-    #training_set = DataGenerator(mit_loader_train, wandb.config.batch_size)
-    #validation_set = DataGenerator(mit_loader_val, wandb.config.batch_size)
 
 
     print('#batch_train, #batch_valid: {}, {}'.format(len(training_set), len(validation_set)))
